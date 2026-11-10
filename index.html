@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Low Orbit</title>
+  </head>
+  <body>
+    <canvas id="scene" aria-label="Space station view"></canvas>
+    <div id="ui">
+      <header id="top" class="panel">
+        <div id="timeline"></div>
+        <div id="controls"></div>
+      </header>
+      <div id="alerts" aria-live="polite"></div>
+      <aside id="left">
+        <section id="priority" class="panel"></section>
+        <section id="inspector" class="panel" hidden></section>
+      </aside>
+      <aside id="right" class="panel"><div id="hud"></div></aside>
+      <footer id="bottom">
+        <div id="build-hint"></div>
+        <div id="buildbar" class="panel"></div>
+        <div id="keys">Drag: look around · Scroll: zoom · 1–4: camera · H: heat map · Space: pause</div>
+      </footer>
+      <div id="overlay" hidden></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

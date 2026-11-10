@@ -2,6 +2,8 @@
 
 Context for anyone (human or AI) working on this project. **Read this first.** It is the source of truth for what the game is, how it works and how it's built. When a decision here changes, update this file.
 
+Lines marked **(M1 decision)** were added while building milestone 1. They record choices the original brief left open.
+
 ## 1. What the game is
 
 Low Orbit is a 3D space-station management game that runs in the browser. The player builds and runs a station circling a planet. Each system (power, heat, altitude, docking, crew) is simple on its own; the challenge is that they all affect each other.
@@ -20,7 +22,7 @@ Use these to decide anything this brief doesn't cover.
 2. **Systems interact.** A new feature earns its place only if it creates trade-offs with at least two existing systems.
 3. **You can read what's coming.** Eclipses, ship arrivals and events show on the timeline ahead of time. Failures come from the player's choices, not hidden randomness.
 4. **Small numbers, clear causes.** The player should always be able to tell why something went wrong (for example "Lab B overheated because radiator 2 was facing the sun").
-5. **It looks like real orbital physics.** It doesn't have to be accurate, but it should feel right: real lighting, real shadows, a believable planet.
+5. **It looks like real orbital physics.** It doesn't have to be accurate, but it should feel right: real lighting, real shadows, a believable planet. Looking good beats strict realism.
 
 ## 3. The orbit cycle (core loop)
 
@@ -33,6 +35,8 @@ Use these to decide anything this brief doesn't cover.
 
 Moment to moment: watch the timeline, place or rearrange modules, change power priorities, plan engine burns and docking, and take contracts.
 
+**(M1 decision)** The station keeps one side facing the planet, so in the station's frame the sun sweeps a half-circle overhead each orbit: it rises on the −X side, passes the zenith (+Y) at local noon and sets on the +X side. The orbit normal is ±Z; the sun never shines from there. Sunlight fades in and out over 3 s at sunrise and sunset.
+
 ## 4. Systems
 
 All values are starting points and live in `src/config/balance.js`. Tune them there; don't scatter magic numbers through the code.
@@ -44,6 +48,11 @@ All values are starting points and live in `src/config/balance.js`. Tune them th
 - Batteries store charge and drain during eclipses.
 - Priority list: when demand is higher than supply, modules shut down from lowest priority up. The player sets the order.
 - A module with no power goes offline and produces nothing, but it can still be holding heat.
+- **(M1 decision)** The sun-facing factor is the cosine between the panel's face and the sun. A fixed wing facing the zenith averages about 52% over the sunlit arc; one facing ±Z gets nothing.
+- **(M1 decision)** A module that was shut down for lack of power waits 5 s before it tries to restart, so a short supply doesn't make it flicker.
+- **(M1 decision)** New batteries arrive empty.
+- **(M1 decision)** The priority list has a **battery cutoff** line the player can move. Modules above it may run on batteries; modules below it only run on sunlight left over by the modules above. New modules join just above the line, so until the player moves it the list behaves exactly as described above.
+- **(M1 decision)** At each sunset an alert says whether the batteries will last the eclipse.
 
 ### 4.2 Heat
 
@@ -51,6 +60,9 @@ All values are starting points and live in `src/config/balance.js`. Tune them th
 - Radiators get rid of heat only when they face away from the sun; one facing the sun works at about 20%.
 - Each module has a temperature. Above **warn**, it works at reduced output. Above **max**, it shuts down and takes damage.
 - Heat travels between connected modules through coolant loops (simple: average toward neighbors at a set rate).
+- **(M1 decision)** A radiator is a two-sided panel. Edge-on to the sun it works at 100%, face-on at 20%, and always 100% in eclipse. It needs power (pumps) to work at all.
+- **(M1 decision)** A radiator removes its rated 6 heat/s at 40°, proportionally less when cooler (nothing at 0°) and up to 1.5× when hotter. Radiators never overheat-shutdown themselves.
+- **(M1 decision)** Warn is 60°, max is 90°. Output falls linearly from 100% at warn to 50% at max. A module that shut down at max restarts once it cools back below warn. No damage until milestone 2.
 
 ### 4.3 Altitude (orbit decay)
 
@@ -92,6 +104,12 @@ All values are starting points and live in `src/config/balance.js`. Tune them th
 
 **Placement rules:** modules snap to attachment points. Nothing can overlap. Radiators and solar wings sweep through space as the station rotates, so they can't block each other.
 
+**(M1 decision)** The station is built on a grid of cells. The hub is 1 cell, a battery 1, a radiator 2, a lab 2 and a solar wing 3, laid out in a line away from the attachment point. Because the truss isn't in milestone 1, the lab has 5 attachment points at its far end and the battery has 1, so a station can grow past the hub's 6.
+
+**(M1 decision)** Wings (solar, radiator) have a facing: the direction their flat face points, always at right angles to the wing's length. The player picks it when placing (R key) and can turn it later from the module panel. Only leaf modules (nothing attached to them) can be removed.
+
+**(M1 decision)** Building is free and instant in milestone 1, because credits arrive in milestone 2. A powered lab below max temperature produces research data (1 point/s, less above warn); it is the milestone 1 score.
+
 ## 6. Contracts and economy (milestone 2)
 
 The player earns credits by completing contracts and spends them on modules.
@@ -117,6 +135,8 @@ Every event is announced on the timeline before it happens (pillar 3).
 - No single win state. Sandbox with goals: reach credit milestones, finish contract chains, survive N orbits.
 - Possible scenario mode later with set starting stations and goals.
 
+**(M1 decision)** "Loses all power for 2 full orbits" is tracked as a core reserve of 180 s. It drains 1 s per second while the hub is unpowered (or shut down by heat) and refills at 0.25 s per second while it runs. An unbroken 2-orbit blackout still ends the game exactly as written; a station that goes dark every eclipse also loses, after about 6 orbits. Without this, a station with solar wings and no batteries could never lose.
+
 ## 9. Look and feel
 
 - **Planet:** a large sphere filling the bottom of the view. Clear day/night line, city lights on the night side, a thin glow at the atmosphere's edge. It spins slowly under the station.
@@ -129,6 +149,8 @@ Every event is announced on the timeline before it happens (pillar 3).
   - Right: power, heat, altitude and fuel gauges.
   - Bottom: module build bar.
   - Clicking a module opens its info panel (power, heat, temperature, priority, crew).
+
+**(M1 decision)** The planet is drawn by a shader (no image files). Its size and distance are set from the eclipse fraction, so the sun visibly sets behind the planet's edge at the moment the eclipse starts.
 
 ## 10. Tech stack and architecture
 
@@ -171,6 +193,8 @@ src/
   data/modules.js      # module definitions (table in §5)
 ```
 
+**(M1 decision)** Added `sim/step.js` (runs the systems in order), `sim/build.js` (attachment points, placing, removing, priorities), `sim/vec.js`, `render/planet.js`, `render/buildtool.js` (port markers and the placement ghost), `ui/priority.js` and `ui/alerts.js`. The altitude, docking, crew and events systems exist as empty steps so the order is already fixed. Sim tests run with `npm test` (Node's built-in test runner).
+
 ### Conventions
 
 - Units in the simulation: seconds, km, kW (power), "heat units", kg-ish mass. Comment the unit on every value in `balance.js`.
@@ -184,15 +208,15 @@ src/
 
 Goal: find out whether the eclipse rhythm is fun.
 
-- [ ] Planet with day/night line, rotating under the station
-- [ ] 90 s orbit with sunlit/eclipse phases, plus moving sun light and shadows
-- [ ] Core hub + 4 placeable modules: solar wing (fixed), battery, radiator, research lab
-- [ ] Snap-to-attachment-point building
-- [ ] Power system with a priority list
-- [ ] Heat system with radiators that depend on which way they face
-- [ ] Orbit timeline + power/heat gauges
-- [ ] Pause and 1×/2×/4× speed
-- [ ] Lose condition: core hub loses power for 2 orbits
+- [x] Planet with day/night line, rotating under the station
+- [x] 90 s orbit with sunlit/eclipse phases, plus moving sun light and shadows
+- [x] Core hub + 4 placeable modules: solar wing (fixed), battery, radiator, research lab
+- [x] Snap-to-attachment-point building
+- [x] Power system with a priority list
+- [x] Heat system with radiators that depend on which way they face
+- [x] Orbit timeline + power/heat gauges
+- [x] Pause and 1×/2×/4× speed
+- [x] Lose condition: core hub loses power for 2 orbits
 
 **Done when:** a new player can build a small station, survive several eclipses, and lose in a way they understand if they ignore heat or batteries.
 
@@ -218,6 +242,8 @@ Sound, tutorial, saving/loading (localStorage), scenario mode, performance pass.
 
 ## 13. Open questions
 
-- Should station rotation be player-controlled (aim radiators and panels manually) or automatic with per-module "facing modes"? Current lean: automatic, with per-module modes.
-- Can modules be damaged and repaired in milestone 1, or only shut down? Current lean: shutdown only until milestone 2.
+- Should station rotation be player-controlled (aim radiators and panels manually) or automatic with per-module "facing modes"? Current lean: automatic, with per-module modes. *Milestone 1 uses a fixed, planet-facing station and a per-wing facing the player sets by hand.*
+- Can modules be damaged and repaired in milestone 1, or only shut down? Current lean: shutdown only until milestone 2. *Milestone 1 is shutdown only.*
 - How long should a typical session be? Target: 20–40 minutes.
+- Is the truss segment needed once labs and batteries carry their own attachment points? *Raised in milestone 1.*
+- Should building cost anything before credits exist? *Milestone 1 is free building; the limit is ports, power and heat.*

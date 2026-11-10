@@ -1,0 +1,19 @@
+{
+  "name": "low-orbit",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Low Orbit: a 3D space-station management sim for the browser.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
