@@ -18,13 +18,15 @@ export const LOOK = {
   planetShineDay: 0.4, // light bounced up from the sunlit ground
   reflections: 0.7, // how strongly shiny parts mirror the planet at local noon
   planetShineColor: 0x8fb6ff,
-  eclipseFill: 0.6, // dim blue fill so the station stays readable in the dark
-  eclipseFillColor: 0x5f7ee0,
+  eclipseFill: 0.55, // dim blue fill so the station stays readable in the dark
+  eclipseFillColor: 0x93a8e8,
   ambientDay: 0.16,
   ambientNight: 0.42,
-  ambientColor: 0x6f8fd8,
+  ambientColor: 0x7d95d6,
 
   // --- camera / post ---
+  maxPixelRatio: 2, // never draw more than this many pixels per CSS pixel
+  minFrameRate: 38, // below this for a couple of seconds, the picture drops resolution a step
   exposure: 1.0,
   bloomStrength: 0.42,
   bloomRadius: 0.55,

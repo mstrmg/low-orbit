@@ -24,7 +24,8 @@ const PRESETS = [
 
 export function createScene(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  let pixelRatio = Math.min(window.devicePixelRatio, LOOK.maxPixelRatio);
+  renderer.setPixelRatio(pixelRatio);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -83,11 +84,13 @@ export function createScene(canvas) {
   let shadowExtent = 0;
   let cameraTween = null;
   let seconds = 0; // real time, for ambient animation only
+  let frameTime = 1 / 60; // smoothed seconds per frame
+  let slowFor = 0; // seconds the frame rate has been poor
 
   function resize() {
     const width = canvas.clientWidth || window.innerWidth;
     const height = canvas.clientHeight || window.innerHeight;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(pixelRatio);
     renderer.setSize(width, height, false);
     post.setSize(width, height, renderer.getPixelRatio());
     camera.aspect = width / height;
@@ -124,6 +127,14 @@ export function createScene(canvas) {
    */
   function update(orbit, timeS, realDt) {
     seconds += realDt;
+    // If the machine can't keep up, draw fewer pixels rather than stutter. It only steps down.
+    frameTime += (realDt - frameTime) * 0.05;
+    slowFor = frameTime > 1 / LOOK.minFrameRate ? slowFor + realDt : 0;
+    if (slowFor > 2 && pixelRatio > 1) {
+      pixelRatio = Math.max(1, pixelRatio - 0.25);
+      slowFor = 0;
+      resize();
+    }
     sunDir.fromArray(orbit.sunDir);
     const f = orbit.sunFactor;
     const warm = f * f * (3 - 2 * f);

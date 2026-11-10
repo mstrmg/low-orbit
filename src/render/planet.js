@@ -308,12 +308,16 @@ void main(){
   float forward = pow(toSun, 9.0);
   float halo = pow(toSun, 120.0);
 
+  // Colour by height, like a real orbital sunset: deep red hugging the ground, then
+  // orange and gold, with the blue sky above. The warm bands show where the sun is low.
+  float hn = h / uHeight;
   vec3 blue = vec3(0.22, 0.50, 1.0);
-  vec3 orange = vec3(1.0, 0.37, 0.10);
-  vec3 col = blue * lit * (1.0 - dusk * 0.8) * 0.9;
-  col += orange * dusk * (0.55 + 1.5 * forward);
-  col += vec3(1.0, 0.62, 0.32) * forward * lit * 0.28;
-  col += vec3(1.0, 0.76, 0.52) * halo * smoothstep(-0.2, 0.0, s) * 1.1;
+  vec3 warm = mix(vec3(1.0, 0.20, 0.03), vec3(1.0, 0.60, 0.20), smoothstep(0.0, 0.22, hn));
+  float low = 1.0 - smoothstep(0.10, 0.42, hn);
+  float sunward = forward * lit * (1.0 - smoothstep(0.15, 0.55, s)); // only where the sun sits low over that air
+  vec3 col = blue * lit * (1.0 - dusk * 0.8) * (1.0 - 0.75 * sunward * low) * 0.9;
+  col += warm * (dusk * 0.55 + dusk * forward * 1.4 + sunward * low * 1.1);
+  col += vec3(1.0, 0.76, 0.52) * halo * smoothstep(-0.2, 0.0, s) * 0.9;
   col *= 1.0 + 1.5 * exp(-h / (uHeight * 0.06)); // bright thin line right at the limb
   col *= density;
 

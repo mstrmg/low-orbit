@@ -87,10 +87,11 @@ export function applyHeatMap(stationView, state, enabled) {
     const entry = stationView.entries.get(module.id);
     if (!entry) continue;
     if (enabled) {
-      heatMapColor(module.temp, entry.heatMaterial.color);
-      entry.heatMaterial.emissive.copy(entry.heatMaterial.color);
-      // hot modules glow harder, so trouble stands out even in a dark eclipse
-      entry.heatMaterial.emissiveIntensity = 0.45 + 0.5 * THREE.MathUtils.clamp(module.temp / HEAT.MAX_TEMP, 0, 1);
+      // Mostly self-lit, so the colour reads the same in sunlight and in eclipse.
+      heatMapColor(module.temp, entry.heatMaterial.emissive);
+      entry.heatMaterial.color.copy(entry.heatMaterial.emissive).multiplyScalar(0.35);
+      // hot modules glow harder, so trouble stands out
+      entry.heatMaterial.emissiveIntensity = 0.5 + 0.45 * THREE.MathUtils.clamp(module.temp / HEAT.MAX_TEMP, 0, 1);
     }
     if (entry.heatOn === enabled) continue;
     entry.heatOn = enabled;

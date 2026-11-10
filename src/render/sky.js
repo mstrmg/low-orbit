@@ -151,7 +151,7 @@ function createSun() {
       uniform vec3 uColor;
       void main(){
         float r = length(vUv);
-        float disc = smoothstep(0.070, 0.058, r);
+        float disc = smoothstep(0.050, 0.040, r);
         float corona = exp(-r * 11.0) * 0.6 + exp(-r * 3.4) * 0.07;
         // soft cross-shaped streaks, like a camera lens
         float a = atan(vUv.y, vUv.x);
