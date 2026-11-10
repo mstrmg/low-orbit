@@ -18,6 +18,7 @@ export function createBuildBar(root, hintRoot, app) {
     const spec = MODULES[type];
     const button = document.createElement('button');
     button.title = spec.purpose;
+    button.dataset.type = type; // style.css picks the icon and colour from this
     button.innerHTML = `<div class="name"><span>${spec.name}</span><kbd>${spec.hotkey.toUpperCase()}</kbd></div><div class="stats">${stats(spec)}</div>`;
     button.addEventListener('click', () => app.setBuildType(app.buildType === type ? null : type));
     root.append(button);

@@ -1,18 +1,18 @@
-// Renderer, camera, lights and the planet. Reads orbit data; holds no game state.
+// Renderer, camera, lights, sky and planet. Reads orbit data; holds no game state.
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ORBIT } from '../config/balance.js';
-import { createAtmosphereGlow, createStars, createSun } from './effects.js';
+import { createPost } from './effects.js';
+import { LOOK } from './look.js';
 import { createPlanet } from './planet.js';
+import { createEnvironment, createSky } from './sky.js';
 
-const PLANET_RADIUS = 1000; // scene units
 // Distance from the planet's centre, chosen so the planet's edge hides the sun
-// for exactly the eclipse fraction of the orbit.
+// for exactly the eclipse fraction of the orbit: what you see matches the timeline.
 const ECLIPSE_HALF_ANGLE = (Math.PI * (ORBIT.PERIOD_S - ORBIT.SUNLIT_S)) / ORBIT.PERIOD_S;
-const ORBIT_RADIUS = PLANET_RADIUS / Math.sin(ECLIPSE_HALF_ANGLE);
-const PLANET_SPIN = 0.05; // extra turn of the ground per orbit, so the ground track drifts
-const SUN_DISTANCE = 6000;
+const ORBIT_RADIUS = LOOK.planetRadius / Math.sin(ECLIPSE_HALF_ANGLE);
+const MIN_GROUND_CLEARANCE = LOOK.atmosphereHeight + 4; // scene units the camera stays above the ground
 
 // Camera presets (keys 1-4): unit direction from the station to the camera.
 const PRESETS = [
@@ -23,67 +23,76 @@ const PRESETS = [
 ];
 
 export function createScene(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+  let pixelRatio = Math.min(window.devicePixelRatio, LOOK.maxPixelRatio);
+  renderer.setPixelRatio(pixelRatio);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = LOOK.exposure;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x010207);
+  scene.background = new THREE.Color(0x000002);
 
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.3, 30000);
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.3, 12000);
   camera.position.set(13, 7.5, 16);
 
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
   controls.enablePan = false;
   controls.minDistance = 5;
   controls.maxDistance = 55;
+  controls.zoomSpeed = 0.8;
 
   // --- Lights ---------------------------------------------------------------
-  const sunLight = new THREE.DirectionalLight(0xfff1dc, 3.2);
+  const sunLight = new THREE.DirectionalLight(LOOK.sunColor, LOOK.sunIntensity);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.set(2048, 2048);
   sunLight.shadow.bias = -0.0004;
   sunLight.shadow.normalBias = 0.03;
   scene.add(sunLight, sunLight.target);
 
-  const ambient = new THREE.AmbientLight(0x5a78b8, 0.4); // dim blue fill
-  const fill = new THREE.DirectionalLight(0x6f8fd0, 0.5); // gives shape in eclipse
-  fill.position.set(-0.4, 0.5, 0.75);
-  const planetShine = new THREE.DirectionalLight(0x8ab8ff, 0); // light bounced up from the day side
-  planetShine.position.set(0, -1, 0);
-  scene.add(ambient, fill, planetShine);
+  // Soft light from all around: the dark sky above, the planet below.
+  const bounce = new THREE.HemisphereLight(0x0a1020, LOOK.planetShineColor, 0);
+  const ambient = new THREE.AmbientLight(LOOK.ambientColor, LOOK.ambientNight);
+  // A dim blue lamp that follows the camera, so the station keeps its shape in eclipse.
+  const fill = new THREE.DirectionalLight(LOOK.eclipseFillColor, LOOK.eclipseFill);
+  scene.add(bounce, ambient, fill, fill.target);
 
   // --- Sky and planet -------------------------------------------------------
   const planetCenter = new THREE.Vector3(0, -ORBIT_RADIUS, 0);
-  const planet = createPlanet(PLANET_RADIUS);
-  const atmosphere = createAtmosphereGlow(PLANET_RADIUS);
-  const planetPivot = new THREE.Group(); // turns the ground under the station
-  planetPivot.position.copy(planetCenter);
-  planetPivot.add(planet.mesh);
-  atmosphere.mesh.position.copy(planetCenter);
-  const stars = createStars(20000);
-  const sun = createSun(SUN_DISTANCE);
-  scene.add(planetPivot, atmosphere.mesh, stars, sun.group);
+  const planet = createPlanet(renderer, planetCenter);
+  const sky = createSky();
+  scene.add(sky.group, planet.group);
+  scene.environment = createEnvironment(renderer, ECLIPSE_HALF_ANGLE); // reflections of the planet on shiny parts
 
   const stationRoot = new THREE.Group();
   stationRoot.name = 'station';
   scene.add(stationRoot);
 
+  const post = createPost(renderer, scene, camera);
+
   const sunDir = new THREE.Vector3();
-  const sunWarm = new THREE.Color(0xff8a3c);
-  const sunWhite = new THREE.Color(0xfff1dc);
+  const sunLow = new THREE.Color(LOOK.sunLowColor);
+  const sunHigh = new THREE.Color(LOOK.sunColor);
+  const shineDay = new THREE.Color(LOOK.planetShineColor);
+  const shineDusk = new THREE.Color(0xff8a4a);
   const center = new THREE.Vector3();
+  const offset = new THREE.Vector3();
+  const fromPlanet = new THREE.Vector3();
   let shadowExtent = 0;
   let cameraTween = null;
+  let seconds = 0; // real time, for ambient animation only
+  let frameTime = 1 / 60; // smoothed seconds per frame
+  let slowFor = 0; // seconds the frame rate has been poor
 
   function resize() {
     const width = canvas.clientWidth || window.innerWidth;
     const height = canvas.clientHeight || window.innerHeight;
+    renderer.setPixelRatio(pixelRatio);
     renderer.setSize(width, height, false);
+    post.setSize(width, height, renderer.getPixelRatio());
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
   }
@@ -117,25 +126,38 @@ export function createScene(canvas) {
    * realDt: seconds since last frame.
    */
   function update(orbit, timeS, realDt) {
+    seconds += realDt;
+    // If the machine can't keep up, draw fewer pixels rather than stutter. It only steps down.
+    frameTime += (realDt - frameTime) * 0.05;
+    slowFor = frameTime > 1 / LOOK.minFrameRate ? slowFor + realDt : 0;
+    if (slowFor > 2 && pixelRatio > 1) {
+      pixelRatio = Math.max(1, pixelRatio - 0.25);
+      slowFor = 0;
+      resize();
+    }
     sunDir.fromArray(orbit.sunDir);
     const f = orbit.sunFactor;
+    const warm = f * f * (3 - 2 * f);
 
+    // Sun: fades and reddens through the air at sunrise and sunset.
     sunLight.position.copy(center).addScaledVector(sunDir, 40 + shadowExtent);
     sunLight.target.position.copy(center);
-    sunLight.intensity = 3.2 * f;
-    sunLight.color.lerpColors(sunWarm, sunWhite, f * f);
-    ambient.intensity = THREE.MathUtils.lerp(0.55, 0.3, f);
-    fill.intensity = THREE.MathUtils.lerp(0.7, 0.25, f);
-    planetShine.intensity = 0.9 * Math.max(0, Math.cos(orbit.angle)) ** 0.6 * (orbit.sunlit ? 1 : 0);
+    sunLight.intensity = LOOK.sunIntensity * f;
+    sunLight.color.lerpColors(sunLow, sunHigh, warm);
 
-    const turns = timeS / ORBIT.PERIOD_S; // orbits flown
-    planetPivot.rotation.z = -orbit.angle - turns * Math.PI * 2 * PLANET_SPIN;
-    stars.rotation.z = -orbit.angle;
-    stars.material.opacity = THREE.MathUtils.lerp(1, 0.35, f);
-    planet.uniforms.uSunDir.value.copy(sunDir);
-    planet.uniforms.uTime.value = timeS;
-    atmosphere.uniforms.uSunDir.value.copy(sunDir);
-    sun.update(sunDir, f, orbit.sunlit);
+    // Planet shine: strongest at local noon, warm and weak near the day/night line, gone at night.
+    const overDay = Math.max(0, Math.cos(orbit.angle));
+    const shine = Math.pow(overDay, 0.6);
+    bounce.groundColor.lerpColors(shineDusk, shineDay, Math.min(1, overDay * 3));
+    bounce.intensity = LOOK.planetShineDay * shine + 0.05 * f;
+    scene.environmentIntensity = LOOK.reflections * (0.1 + 0.9 * shine);
+    ambient.intensity = THREE.MathUtils.lerp(LOOK.ambientNight, LOOK.ambientDay, f);
+    fill.intensity = THREE.MathUtils.lerp(LOOK.eclipseFill, LOOK.eclipseFill * 0.45, f);
+
+    // Eyes adapt a little in the dark.
+    renderer.toneMappingExposure = LOOK.exposure * THREE.MathUtils.lerp(1.22, 1.0, f);
+
+    planet.update(sunDir, timeS / ORBIT.PERIOD_S, seconds);
 
     controls.target.lerp(center, 1 - Math.exp(-realDt * 6));
     if (cameraTween) {
@@ -145,9 +167,22 @@ export function createScene(canvas) {
       if (cameraTween.t >= 1) cameraTween = null;
     }
     controls.update();
+
+    // Never let the camera dip into the atmosphere.
+    fromPlanet.subVectors(camera.position, planetCenter);
+    const minRadius = LOOK.planetRadius + MIN_GROUND_CLEARANCE;
+    if (fromPlanet.length() < minRadius) camera.position.copy(planetCenter).addScaledVector(fromPlanet.normalize(), minRadius);
+
+    // Fill lamp: over the camera's left shoulder.
+    offset.set(-0.55, 0.45, 0.7).applyQuaternion(camera.quaternion);
+    fill.position.copy(center).addScaledVector(offset, 30);
+    fill.target.position.copy(center);
+
+    sky.update(sunDir, orbit.angle, f, sunLight.color, camera, seconds, renderer.getPixelRatio());
+    post.update(f);
   }
 
-  const render = () => renderer.render(scene, camera);
+  const render = () => post.render();
   controls.addEventListener('start', () => (cameraTween = null));
 
   return { renderer, scene, camera, controls, stationRoot, sunLight, update, render, resize, frameStation, setPreset };

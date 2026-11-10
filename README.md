@@ -29,3 +29,5 @@ npm run build    # static build in dist/
 | Esc | Leave build mode / deselect |
 
 `node test/balance-check.mjs` prints how a few example stations fare, for tuning `src/config/balance.js`.
+
+How the game looks (light strengths, colours, bloom, planet scale, heat-map colours) is tuned in `src/render/look.js`. It never affects the simulation.
