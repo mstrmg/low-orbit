@@ -30,32 +30,71 @@ export function createTimeline(root) {
     const from = time - BEHIND_S;
     const to = time + AHEAD_S;
     const x = (t) => ((t - from) / (to - from)) * width;
-    const bandTop = 4;
-    const bandHeight = 20;
+    const bandTop = 5;
+    const bandHeight = 22;
+    const bandBottom = bandTop + bandHeight;
+    const now = x(time);
 
     // Sunlit and eclipse bands.
     const edges = [{ time: from }, ...transitionsBetween(from, to), { time: to }];
     for (let i = 0; i < edges.length - 1; i++) {
       const mid = (edges[i].time + edges[i + 1].time) / 2;
       const phase = ((mid % ORBIT.PERIOD_S) + ORBIT.PERIOD_S) % ORBIT.PERIOD_S;
-      ctx.fillStyle = phase < ORBIT.SUNLIT_S ? 'rgba(255, 200, 107, 0.85)' : 'rgba(52, 78, 150, 0.75)';
-      ctx.fillRect(x(edges[i].time), bandTop, x(edges[i + 1].time) - x(edges[i].time) - 1, bandHeight);
+      const sunlit = phase < ORBIT.SUNLIT_S;
+      const left = x(edges[i].time);
+      const right = x(edges[i + 1].time);
+      const fill = ctx.createLinearGradient(0, bandTop, 0, bandBottom);
+      if (sunlit) {
+        fill.addColorStop(0, '#ffd27a');
+        fill.addColorStop(1, '#f0a23c');
+      } else {
+        fill.addColorStop(0, '#1b2a63');
+        fill.addColorStop(1, '#101a44');
+      }
+      ctx.fillStyle = fill;
+      ctx.fillRect(left, bandTop, right - left, bandHeight);
+      if (!sunlit) {
+        // a few fixed "stars" so the eclipse reads as night at a glance
+        ctx.fillStyle = 'rgba(190, 210, 255, 0.55)';
+        const start = Math.floor(edges[i].time / 3) * 3;
+        for (let t = start; t < edges[i + 1].time; t += 3) {
+          const sx = x(t + ((t * 7) % 3) * 0.6);
+          if (sx > left + 2 && sx < right - 2) ctx.fillRect(sx, bandTop + 4 + ((t * 13) % 14), 1.5, 1.5);
+        }
+      }
+    }
+    // The past is dimmed.
+    ctx.fillStyle = 'rgba(4, 8, 18, 0.5)';
+    ctx.fillRect(0, bandTop, now, bandHeight);
+
+    // Ruler: a tick every 10 s of game time.
+    ctx.fillStyle = 'rgba(170, 200, 255, 0.4)';
+    for (let t = Math.ceil(from / 10) * 10; t <= to; t += 10) {
+      const major = Math.round(t) % 30 === 0;
+      ctx.fillRect(Math.round(x(t)), bandBottom + 1, 1, major ? 5 : 3);
     }
 
     // Labels for upcoming sunsets and sunrises.
-    ctx.font = '10px ui-monospace, Menlo, Consolas, monospace';
+    ctx.font = "10px 'B612', ui-monospace, Menlo, Consolas, monospace";
     ctx.textBaseline = 'top';
+    let lastRight = -Infinity;
     for (const edge of transitionsBetween(time, to)) {
       const label = `${edge.kind === 'sunset' ? 'eclipse' : `orbit ${edge.orbit}`} ${Math.ceil(edge.time - time)}s`;
-      ctx.fillStyle = edge.kind === 'sunset' ? '#9db8ff' : '#ffd590';
       const textWidth = ctx.measureText(label).width;
-      ctx.fillText(label, Math.min(x(edge.time) + 2, width - textWidth), bandTop + bandHeight + 4);
+      const at = Math.min(x(edge.time) + 3, width - textWidth);
+      if (at < lastRight + 8) continue; // never print one label over another
+      lastRight = at + textWidth;
+      ctx.fillStyle = edge.kind === 'sunset' ? '#9db4ff' : '#ffcf85';
+      ctx.fillRect(Math.round(x(edge.time)), bandBottom + 1, 1, 9);
+      ctx.fillText(label, at, bandBottom + 8);
     }
 
     // Now.
-    const now = x(time);
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+    ctx.shadowBlur = 6;
     ctx.fillStyle = '#fff';
-    ctx.fillRect(now - 1, 0, 2, bandTop + bandHeight + 4);
+    ctx.fillRect(now - 1, 1, 2, bandBottom + 3);
+    ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.moveTo(now - 5, 0);
     ctx.lineTo(now + 5, 0);

@@ -152,6 +152,12 @@ Every event is announced on the timeline before it happens (pillar 3).
 
 **(M1 decision)** The planet is drawn by a shader (no image files). Its size and distance are set from the eclipse fraction, so the sun visibly sets behind the planet's edge at the moment the eclipse starts.
 
+**(M1 decision)** Looks good beats strictly realistic. Where the two disagree, pick the better picture, as long as what you see still agrees with the simulation (the sun, shadows and day/night line always follow the sim's sun direction). Examples: the ground slides under the station about five times slower than a real 90 s orbit would, because the true speed is a blur; the atmosphere glow and sunrise colours are exaggerated; the eclipse has a dim blue fill light so the station stays readable.
+
+**(M1 decision)** Everything that only affects appearance (light strengths, colours, bloom, planet scale, heat-map colours) lives in `src/render/look.js`, the visual twin of `balance.js`. No image files: the planet, sky and module textures are all generated in code at start-up. The picture is drawn in HDR with anti-aliasing, then bloom, a light vignette and tone mapping (`effects.js`).
+
+**(M1 decision)** Interface type is B612 (the open typeface Airbus made for cockpit displays), bundled through `@fontsource` so nothing loads from the network. Each module type has one accent colour shared by its 3D model and its build-bar button: solar blue, battery gold, radiator orange, lab teal.
+
 ## 10. Tech stack and architecture
 
 - **Rendering:** Three.js (`three@0.170.0`), with OrbitControls from its addons.
@@ -193,7 +199,7 @@ src/
   data/modules.js      # module definitions (table in §5)
 ```
 
-**(M1 decision)** Added `sim/step.js` (runs the systems in order), `sim/build.js` (attachment points, placing, removing, priorities), `sim/vec.js`, `render/planet.js`, `render/buildtool.js` (port markers and the placement ghost), `ui/priority.js` and `ui/alerts.js`. The altitude, docking, crew and events systems exist as empty steps so the order is already fixed. Sim tests run with `npm test` (Node's built-in test runner).
+**(M1 decision)** Added `sim/step.js` (runs the systems in order), `sim/build.js` (attachment points, placing, removing, priorities), `sim/vec.js`, `render/planet.js`, `render/buildtool.js` (port markers and the placement ghost), `ui/priority.js` and `ui/alerts.js`. The visuals pass added `render/look.js` (visual constants), `render/sky.js` (stars, sun, reflections) and `render/noise.glsl.js` (shared shader noise); the planet's atmosphere glow now lives in `render/planet.js`, and `render/effects.js` holds the final image pass and the heat-map tint. The altitude, docking, crew and events systems exist as empty steps so the order is already fixed. Sim tests run with `npm test` (Node's built-in test runner).
 
 ### Conventions
 
